@@ -26,3 +26,11 @@ it = set.lower_bound(target);
 ```
 typedef pair<int, int> pii;
 ```
+
+# Bucket
+sqrt(max_cnt) is max efficiency<br>
+There are two situations.<br>
+<li>
+All in one bucket -> separate 
+<li>
+Split in diff buckets -> all handled same
