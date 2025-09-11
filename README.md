@@ -21,3 +21,8 @@ Does not matter for unordered_map
 
 # To find something same or bigger than target
 it = set.lower_bound(target);
+
+# pair
+```
+typedef pair<int, int> pii;
+```
