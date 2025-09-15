@@ -4,6 +4,7 @@ struct name{
     --
 } name_list[#];
 ```
+
 # Ordered Set
 ``` C++
 struct Compare {
@@ -20,11 +21,15 @@ erase : if map, with key, O(logN), with iter, O(1)<br>
 Does not matter for unordered_map
 
 # To find something same or bigger than target
+```C++
 it = set.lower_bound(target);
-
-# pair
 ```
+
+# pair for graph
+```C++
 typedef pair<int, int> pii;
+vector<vector<pii>> graph; // global
+vector<vector<pii>> new_graph(N); // init
 ```
 
 # Bucket
