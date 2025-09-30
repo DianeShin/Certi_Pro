@@ -39,3 +39,16 @@ There are two situations.<br>
 All in one bucket -> separate 
 <li>
 Split in diff buckets -> all handled same
+</li><br>
+
+# SetCompare VS QueCompare
+Set : uses less. If true, a -> b.<br>
+Queue : uses greater. If true, b -> a.
+
+# Clearing DataSturctures
+Set : clear()<br>
+Queue/Vector : re-initialize
+
+# Emplace vs Push
+Emplace : directly uses the object<br>
+Push : uses a copy of an object
