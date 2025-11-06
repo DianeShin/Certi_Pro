@@ -1,0 +1,75 @@
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <unordered_set>
+using namespace std;
+
+struct Node {
+    int parent;
+    vector<int> child;
+    int size = 1;
+} node_list[10000];
+
+int main() {
+    int T;
+    cin >> T;
+    for (int test_case = 1; test_case <= T; test_case++) {
+        // init
+        int ancester, size;
+
+        int V, E, num_1, num_2;
+        cin >> V >> E >> num_1 >> num_2;
+
+        for (int i = 1; i <= V; i++) {
+            node_list[i].parent = i;
+            node_list[i].child.clear();
+            node_list[i].size = 1;
+        }
+
+        // construct graph
+        int start, end;
+        for (int i = 0; i < E; i++) {
+            cin >> start >> end;
+            node_list[start].child.push_back(end);
+            node_list[end].parent = start;
+            int parent = start;
+            while (true) {
+                node_list[parent].size += node_list[end].size;
+                if (parent == node_list[parent].parent) break;
+                else parent = node_list[parent].parent;
+
+            }
+        }
+
+        // calculate
+        vector<int> parent_one;
+        vector<int> parent_two;
+        int curr = num_1;
+        while (true) {
+            int p = node_list[curr].parent;
+            if (p == curr) break;
+            parent_one.push_back(p);
+            curr = p;
+        }
+
+        curr = num_2;
+        while (true) {
+            int p = node_list[curr].parent;
+            if (p == curr) break;
+            parent_two.push_back(p);
+            curr = p;
+        }
+
+        unordered_set<int> s(parent_one.begin(), parent_one.end());
+        for (int b : parent_two) {
+            if (s.count(b)) {
+                ancester = b;
+                break;
+            }
+        }
+
+        cout << "#" << test_case << " " << ancester << " " << node_list[ancester].size << endl;;
+    }
+
+    return 0;
+}
