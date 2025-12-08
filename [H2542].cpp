@@ -33,7 +33,7 @@ void decrypt(uint32_t target, char* result) {
 			target = target >> 8;
 		}
 		else {
-			result[i] == '\0';
+			result[i] = '\0';
 		}
 	}
 }
@@ -57,12 +57,12 @@ void change(int mRow, int mCol, int mDir, int mLength, char mGrade[MAX_M]) {
 	uint32_t new_grade = encrypt(mGrade);
 	if (mDir == 0) {
 		for (int i = 0; i < mLength; i++) {
-			board[i][mCol] = new_grade;
+			board[mRow + i][mCol] = new_grade;
 		}
 	}
 	else {
 		for (int j = 0; j < mLength; j++) {
-			board[mRow][j] = new_grade;
+			board[mRow][mCol + j] = new_grade;
 		}
 	}
 }
