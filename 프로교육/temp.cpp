@@ -1,162 +1,162 @@
+/*
+     
+* @file: [H2522][Pro] 도로 파괴
+     
+* @brief: 모범 답안 
+    
+* @copyright: All rights reserved (c) 2025 Samsung Electronics, Inc. 
+    
+*/
+ 
+ 
+ 
+ 
+#include <unordered_map>
 #include <vector>
 #include <queue>
-#include <utility>
-#include <limits.h>
-#include <unordered_map>
-#include <algorithm>
-
-#define MAX_N 1000
-#define MAX_K 5000
-
+#include <cstring>
+ 
+ 
 using namespace std;
-
-int graph[MAX_N][MAX_N];
-int city_num;
-unordered_map<int, pair<int, int>> mID_map;
-
+ 
+ 
+constexpr int MAX_N = 1000;
+constexpr int INF = 0x7f7f7f7f;
+ 
+ 
+typedef unsigned long long ull;
+ 
+ 
+unordered_map<int, int> Hash;
+vector<ull> Graph[MAX_N];
+int PrevNode[MAX_N], PrevRoad[MAX_N];
+ 
+ 
+int dijkstra(int src, int dst) {
+    int dist[MAX_N];
+    memset(dist, 0x7f, sizeof(dist));
+    memset(PrevNode, -1, sizeof(PrevNode));
+ 
+ 
+    priority_queue<int, vector<int>, greater<int>> pq;
+ 
+ 
+    dist[src] = 0;
+    pq.emplace(src);
+ 
+ 
+    while (!pq.empty()) {
+        int currCost = pq.top() >> 10;
+        int u = pq.top() & 0x3ff;
+        pq.pop();
+ 
+ 
+        if (dist[u] < currCost) continue;
+        if (u == dst) return currCost;
+ 
+ 
+        for (auto val : Graph[u]) {
+            int v = val >> 48;
+            int nextCost = currCost + (val >> 32) & 0xffff;
+ 
+ 
+            if (dist[v] > nextCost) {
+                dist[v] = nextCost;
+                PrevNode[v] = u;
+                PrevRoad[v] = val & 0xffffffff;
+                pq.emplace(nextCost << 10 | v);
+            }
+        }
+    }
+    return INF;
+}
+ 
+ 
+int dijkstraExclude(int src, int dst, int excludedId) {
+    int dist[MAX_N];
+    memset(dist, 0x7f, sizeof(dist));
+ 
+ 
+    priority_queue<int, vector<int>, greater<int>> pq;
+ 
+ 
+    dist[src] = 0;
+    pq.emplace(src);
+ 
+ 
+    while (!pq.empty()) {
+        int currCost = pq.top() >> 10;
+        int u = pq.top() & 0x3ff;
+        pq.pop();
+ 
+ 
+        if (dist[u] < currCost) continue;
+        if (u == dst) return currCost;
+ 
+ 
+        for (auto val : Graph[u]) {
+            if (excludedId == (val & 0xffffffff)) continue;
+ 
+ 
+            int v = val >> 48;
+            int nextCost = currCost + (val >> 32) & 0xffff;
+ 
+ 
+            if (dist[v] > nextCost) {
+                dist[v] = nextCost;
+                pq.emplace(nextCost << 10 | v);
+            }
+        }
+    }
+    return INF;
+}
+ 
+ 
 void init(int N, int K, int mId[], int sCity[], int eCity[], int mTime[]) {
-	// init
-	city_num = N;
-	for (int row = 0; row < city_num; row++) {
-		for (int col = 0; col < city_num; col++) {
-			graph[row][col] = 0;
-		}
-	}
-
-	// fill in roads
-	for (int i = 0; i < K; i++) {
-		graph[sCity[i]][eCity[i]] = mTime[i];
-		mID_map[mId[i]] = make_pair(sCity[i], eCity[i]);
-	}
-	return;
+    Hash.clear();
+    for (int i = 0; i < N; ++i) {
+        Graph[i].clear();
+    }
+    for (int i = 0; i < K; ++i) {
+        Graph[sCity[i]].emplace_back((ull)eCity[i] << 48 | (ull)mTime[i] << 32 | mId[i]);
+        Hash[mId[i]] = sCity[i];
+    }
 }
-
+ 
+ 
 void add(int mId, int sCity, int eCity, int mTime) {
-	graph[sCity][eCity] = mTime;
-	mID_map[mId] = make_pair(sCity, eCity);
-	return;
+    Graph[sCity].emplace_back((ull)eCity << 48 | (ull)mTime << 32 | mId);
+    Hash[mId] = sCity;
 }
-
+ 
+ 
 void remove(int mId) {
-	auto it = mID_map.find(mId);
-	graph[it->second.first][it->second.second] = 0;
-	mID_map.erase(mId);
-	return;
+    int sCity = Hash[mId];
+    for (int i = 0; i < Graph[sCity].size(); ++i) {
+        if (mId == (Graph[sCity][i] & 0xffffffff)) {
+            Graph[sCity].erase(Graph[sCity].begin() + i);
+            return;
+        }
+    }
 }
-
-int dijkstra(int sCity, int eCity) {
-	vector<int> dist(city_num, INT_MAX);
-	priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> pq;
-
-	dist[sCity] = 0;
-	pq.push({ 0, sCity });
-
-	while (!pq.empty()) {
-		int currentDist = pq.top().first;
-		int currentNode = pq.top().second;
-		pq.pop();
-
-		if (currentNode == eCity) {
-			return currentDist;
-		}
-
-		if (currentDist > dist[currentNode]) {
-			continue;
-		}
-
-		for (int i = 0; i < city_num; i++) {
-			if (graph[currentNode][i]) {
-				int nextNode = i;
-				int nextDist = graph[currentNode][i];
-				if (dist[currentNode] + nextDist < dist[nextNode]) {
-					dist[nextNode] = dist[currentNode] + nextDist;
-					pq.push({ dist[nextNode], nextNode });
-				}
-			}
-		}
-	}
-	return -1; // If no path exists
-}
-
-// Function to find the path using Dijkstra's algorithm
-vector<pair<int, int>> findPath(int sCity, int eCity) {
-	vector<int> dist(city_num, INT_MAX);
-	vector<pair<int, int>> parent(city_num, { -1, -1 }); // To track the path as pairs
-	priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> pq;
-
-	dist[sCity] = 0;
-	pq.push({ 0, sCity });
-
-	while (!pq.empty()) {
-		int currentDist = pq.top().first;
-		int currentNode = pq.top().second;
-		pq.pop();
-
-		if (currentNode == eCity) {
-			// Reconstruct the path
-			vector<pair<int, int>> path;
-			for (int at = eCity; at != -1; at = parent[at].first) {
-				if (parent[at].second != -1) {
-					path.push_back({ parent[at].first, parent[at].second });
-				}
-			}
-			reverse(path.begin(), path.end());
-			return path;
-		}
-
-		if (currentDist > dist[currentNode]) {
-			continue;
-		}
-
-		for (int i = 0; i < city_num; i++) {
-			if (graph[currentNode][i]) {
-				int nextNode = i;
-				int nextDist = graph[currentNode][i];
-				if (dist[currentNode] + nextDist < dist[nextNode]) {
-					dist[nextNode] = dist[currentNode] + nextDist;
-					parent[nextNode] = { currentNode, nextNode }; // Update parent
-					pq.push({ dist[nextNode], nextNode });
-				}
-			}
-		}
-	}
-
-	return {}; // If no path exists
-}
-
+ 
+ 
 int calculate(int sCity, int eCity) {
-	// Step 1: Find the shortest path
-	vector<pair<int, int>> path = findPath(sCity, eCity);
-	if (path.empty()) return -1; // No path exists
-
-	// Step 2: Calculate the original shortest path distance
-	int originalDistance = 0;
-	for (const auto& edge : path) {
-		originalDistance += graph[edge.first][edge.second];
-	}
-
-	// Step 3: Try removing each road in the path and recalculate
-	int maxIncrease = 0;
-	for (const auto& edge : path) {
-		int u = edge.first;
-		int v = edge.second;
-
-		// Remove the road
-		int temp_road_weight = graph[u][v];
-		graph[u][v] = 0;
-
-		// Recalculate the shortest path
-		int newDistance = dijkstra(sCity, eCity);
-
-		// Restore the road
-		graph[u][v] = temp_road_weight;
-			
-		// Calculate the increase in distance
-		if (newDistance == -1) return -1; // cannot go
-		else if (newDistance - originalDistance > maxIncrease) {
-			maxIncrease = newDistance - originalDistance;
-		}
-	}
-
-	return maxIncrease;
+    int dist = dijkstra(sCity, eCity);
+    if (dist == INF) return -1;
+ 
+ 
+    int curr = eCity;
+    int maxDist = 0;
+    while (PrevNode[curr] != -1) {
+        int newDist = dijkstraExclude(sCity, eCity, PrevRoad[curr]);
+        if (newDist == INF) return -1;
+ 
+ 
+        maxDist = max(maxDist, newDist);
+        curr = PrevNode[curr];
+    }
+ 
+ 
+    return maxDist - dist;
 }
