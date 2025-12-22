@@ -1,162 +1,303 @@
 /*
-     
-* @file: [H2522][Pro] 도로 파괴
-     
-* @brief: 모범 답안 
-    
-* @copyright: All rights reserved (c) 2025 Samsung Electronics, Inc. 
-    
+* @file: [H2526][Pro] 기계식 주차장
+  
+* @brief: 모범 답안
+  
+* @copyright: All rights reserved (c) 2025 Samsung Electronics, Inc.
 */
  
  
  
  
-#include <unordered_map>
-#include <vector>
-#include <queue>
-#include <cstring>
+#include <bits/stdc++.h>
  
  
 using namespace std;
  
  
-constexpr int MAX_N = 1000;
-constexpr int INF = 0x7f7f7f7f;
+struct RESULT_E
+{
+    int success;
+    char locname[5];
+};
  
  
-typedef unsigned long long ull;
+struct RESULT_S
+{
+    int cnt;
+    char carlist[5][8];
+};
  
  
-unordered_map<int, int> Hash;
-vector<ull> Graph[MAX_N];
-int PrevNode[MAX_N], PrevRoad[MAX_N];
+int N, M, L;
  
  
-int dijkstra(int src, int dst) {
-    int dist[MAX_N];
-    memset(dist, 0x7f, sizeof(dist));
-    memset(PrevNode, -1, sizeof(PrevNode));
- 
- 
-    priority_queue<int, vector<int>, greater<int>> pq;
- 
- 
-    dist[src] = 0;
-    pq.emplace(src);
- 
- 
-    while (!pq.empty()) {
-        int currCost = pq.top() >> 10;
-        int u = pq.top() & 0x3ff;
-        pq.pop();
- 
- 
-        if (dist[u] < currCost) continue;
-        if (u == dst) return currCost;
- 
- 
-        for (auto val : Graph[u]) {
-            int v = val >> 48;
-            int nextCost = currCost + (val >> 32) & 0xffff;
- 
- 
-            if (dist[v] > nextCost) {
-                dist[v] = nextCost;
-                PrevNode[v] = u;
-                PrevRoad[v] = val & 0xffffffff;
-                pq.emplace(nextCost << 10 | v);
-            }
-        }
-    }
-    return INF;
+int getIdx(char s[])
+{
+    return (s[0] - '0') * 1000 + (s[1] - '0') * 100 + (s[2] - '0') * 10 + s[3] - '0';
 }
  
  
-int dijkstraExclude(int src, int dst, int excludedId) {
-    int dist[MAX_N];
-    memset(dist, 0x7f, sizeof(dist));
+#define TOWING            (-2)
+#define OUT_OF_LOT        (-1)    
  
  
-    priority_queue<int, vector<int>, greater<int>> pq;
+struct Car
+{
+    char regNo[8];
+    int d4idx;
+     
+    int timestamp;
+    int zone, slot;
+     
+    set<Car*>::iterator it;
  
  
-    dist[src] = 0;
-    pq.emplace(src);
+    void init(char c[])
+    {
+        strcpy(regNo, c);
+        d4idx = getIdx(regNo + 3);
  
  
-    while (!pq.empty()) {
-        int currCost = pq.top() >> 10;
-        int u = pq.top() & 0x3ff;
-        pq.pop();
- 
- 
-        if (dist[u] < currCost) continue;
-        if (u == dst) return currCost;
- 
- 
-        for (auto val : Graph[u]) {
-            if (excludedId == (val & 0xffffffff)) continue;
- 
- 
-            int v = val >> 48;
-            int nextCost = currCost + (val >> 32) & 0xffff;
- 
- 
-            if (dist[v] > nextCost) {
-                dist[v] = nextCost;
-                pq.emplace(nextCost << 10 | v);
-            }
-        }
+        zone = -1;
     }
-    return INF;
+};
+ 
+ 
+int carCnt;
+Car cars[70000];
+ 
+ 
+Car* getCar()
+{
+    return &cars[carCnt++];
 }
  
  
-void init(int N, int K, int mId[], int sCity[], int eCity[], int mTime[]) {
-    Hash.clear();
-    for (int i = 0; i < N; ++i) {
-        Graph[i].clear();
+queue<pair<int, Car*>> events;
+unordered_map<string, Car*> cdb;
+ 
+ 
+struct comp
+{
+    bool operator() (Car* const &a, Car* const &b)
+    {
+        return strcmp(a->regNo, b->regNo) < 0;
     }
-    for (int i = 0; i < K; ++i) {
-        Graph[sCity[i]].emplace_back((ull)eCity[i] << 48 | (ull)mTime[i] << 32 | mId[i]);
-        Hash[mId[i]] = sCity[i];
+};
+ 
+ 
+set<Car*, comp> parking[10000];
+set<Car*, comp> towing[10000];
+ 
+ 
+struct Zone
+{
+    int zoneID;
+     
+    int parkingNum;
+    set<int> emptySlot;
+ 
+ 
+    void init(int id)
+    { 
+        zoneID = id;
+ 
+ 
+        emptySlot.clear();
+        for (int i = 0; i < M; ++i)
+            emptySlot.insert(i);
+         
+        parkingNum = 0;
     }
-}
+     
+    void pullout(int slot)
+    {
+        --parkingNum;    
+        emptySlot.insert(slot);
+    }
+     
+    void enter(Car* p)
+    {
+        auto it = emptySlot.begin();
+         
+        p->zone = zoneID;
+        p->slot = *it;
+         
+        emptySlot.erase(it);
+        ++parkingNum;
+    }
+};
  
  
-void add(int mId, int sCity, int eCity, int mTime) {
-    Graph[sCity].emplace_back((ull)eCity << 48 | (ull)mTime << 32 | mId);
-    Hash[mId] = sCity;
-}
+Zone zone[26];
  
  
-void remove(int mId) {
-    int sCity = Hash[mId];
-    for (int i = 0; i < Graph[sCity].size(); ++i) {
-        if (mId == (Graph[sCity][i] & 0xffffffff)) {
-            Graph[sCity].erase(Graph[sCity].begin() + i);
+void process(int cur)
+{
+    while (!events.empty())
+    {
+        int timestamp = events.front().first;
+        Car* p = events.front().second;
+ 
+ 
+        if (timestamp + L > cur)
             return;
+ 
+ 
+        events.pop();
+ 
+ 
+        if (p->timestamp == timestamp && p->zone >= 0)
+        {
+            zone[p->zone].pullout(p->slot);
+            p->zone = TOWING;
+            parking[p->d4idx].erase(p->it);
+            p->it = towing[p->d4idx].insert(p).first;
         }
     }
 }
  
  
-int calculate(int sCity, int eCity) {
-    int dist = dijkstra(sCity, eCity);
-    if (dist == INF) return -1;
+void copyLoc(char s[], int zoneID, int d4idx)
+{
+    s[0] = 'A' + zoneID;
+    s[1] = d4idx / 100 + '0';
+    s[2] = d4idx / 10 % 10 + '0';
+    s[3] = d4idx % 10 + '0';
+    s[4] = '\0';
+}
  
  
-    int curr = eCity;
-    int maxDist = 0;
-    while (PrevNode[curr] != -1) {
-        int newDist = dijkstraExclude(sCity, eCity, PrevRoad[curr]);
-        if (newDist == INF) return -1;
+void init(int N, int M, int L)
+{
+    ::N = N; ::M = M; ::L = L;
  
  
-        maxDist = max(maxDist, newDist);
-        curr = PrevNode[curr];
+    for (int i = 0; i < N; ++i)
+        zone[i].init(i);
+ 
+ 
+    carCnt = 0;
+    for (int i = 0; i < 10000; ++i)
+    {
+        parking[i].clear();
+        towing[i].clear();
+    }
+     
+    while (!events.empty()) events.pop();
+    cdb.clear();
+}
+ 
+ 
+RESULT_E enter(int mTime, char mCarNo[])
+{
+    process(mTime);
+     
+    Car* p = cdb[mCarNo];
+    if (p == nullptr)
+    {
+        p = getCar();
+        p->init(mCarNo);
+        cdb[mCarNo] = p;
+    }
+    else if (p->zone == TOWING)
+    {
+        towing[p->d4idx].erase(p->it);
+        p->zone = OUT_OF_LOT;
     }
  
  
-    return maxDist - dist;
+    int mm = M, i0 = -1;
+    for (int i = 0; i < N; ++i)
+        if (zone[i].parkingNum < mm)
+        {
+            mm = zone[i].parkingNum;
+            i0 = i;
+        }
+     
+    p->timestamp = mTime;
+     
+    RESULT_E res_e;
+ 
+ 
+    if (i0 == -1)
+    {
+        res_e.success = 0;
+        return res_e;
+    }
+ 
+ 
+    zone[i0].enter(p);
+ 
+ 
+    p->it = parking[p->d4idx].insert(p).first;
+     
+    events.push({mTime, p});
+    res_e.success = 1;
+    copyLoc(res_e.locname, p->zone, p->slot);
+ 
+ 
+    return res_e;
+}
+ 
+ 
+int pullout(int mTime, char mCarNo[])
+{
+    process(mTime);
+     
+    Car* p = cdb[mCarNo];
+ 
+ 
+    if (p == nullptr || p->zone == OUT_OF_LOT)
+        return -1;
+     
+    int ret;
+    if (p->zone != TOWING)
+    {
+        zone[p->zone].pullout(p->slot);
+        parking[p->d4idx].erase(p->it);
+        ret = mTime - p->timestamp;
+    }
+    else
+    {
+        towing[p->d4idx].erase(p->it);
+        ret = -L - (mTime - p->timestamp - L) * 5;
+    }
+ 
+ 
+    p->zone = OUT_OF_LOT;
+ 
+ 
+    return ret;
+}
+ 
+ 
+RESULT_S search(int mTime, char mStr[])
+{
+    process(mTime);
+     
+    RESULT_S res_s;
+     
+    res_s.cnt = 0;
+ 
+ 
+    int d4idx = getIdx(mStr);
+    for (auto p : parking[d4idx])
+    {
+        if (res_s.cnt == 5)
+            break;
+        strcpy(res_s.carlist[res_s.cnt++], p->regNo);
+    }
+ 
+ 
+    for (auto p : towing[d4idx])
+    {
+        if (res_s.cnt == 5)
+            break;
+        strcpy(res_s.carlist[res_s.cnt++], p->regNo);
+    }
+ 
+ 
+    return res_s;
 }
