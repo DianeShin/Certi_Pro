@@ -1,5 +1,56 @@
+#include <vector>
+#include <unordered_map>
+#include <algorithm>
+using namespace std;
+
+vector<vector<int>> graph;
+int N;
+unordered_map<int, int> IDLen;
+unordered_map<int, int> IDDest;
+unordered_map<int, int> IDSource;
+
+void init(int N)
+{
+	::N;
+	vector<vector<int>> new_graph(N);
+	graph = new_graph;
+	IDLen.clear();
+	IDDest.clear();
+	IDSource.clear();
+}
+
+void addRoad(int K, int mID[], int mSpotA[], int mSpotB[], int mLen[])
+{
+	for (int i = 0; i < K; i++) {
+		graph[mSpotA[i]].push_back(mID[i]);
+		graph[mSpotB[i]].push_back(mID[i]);
+		IDLen[mID[i]] = mLen[i];
+		IDDest[mID[i]] = mSpotB[i];
+		IDSource[mID[i]] = mSpotA[i];
+	}
+}
+
+void removeRoad(int mID) // vector에서는 지우지 말고, map에서만 지우는 것도 좋은 생각.
+{
+	if (IDLen.find(mID) != IDLen.end()) {
+		int start = IDSource[mID];
+		int end = IDDest[mID];
+		IDLen.erase(mID);
+		IDDest.erase(mID);
+	}
+}
+
+void dfs()
+{
+}
+
+int getLength(int mSpot)
+{
+	
+}
+
 /*
-* @file: [H2526][Pro] 기계식 주차장
+* @file: [H2516][Pro] 마라톤 코스
   
 * @brief: 모범 답안
   
@@ -7,297 +58,133 @@
 */
  
  
- 
- 
-#include <bits/stdc++.h>
- 
- 
+#include <unordered_map>
+#include <vector>
 using namespace std;
  
+#define PII        pair<int,int>
+#define PIII    pair<int,PII>
  
-struct RESULT_E
+#define MAXLEN    42195
+ 
+struct {
+    vector <PII> rids;
+    vector <PIII> paths;    //len, rid0 + rid1, rid2 + rid3
+} Node[1001];
+ 
+struct {
+    int active;
+    int visit;
+    int na, nb;
+    int len;
+} Road[5000];
+int rcnt;
+ 
+unordered_map<int, int> roadIDs;
+ 
+int startNID, maxLength;
+int runPath[10];
+int N;
+ 
+void init(int _N)
 {
-    int success;
-    char locname[5];
-};
+    N = _N;
+    for (int i = 1; i <= N; i++) {
+        Node[i].rids.clear();
+    }
  
- 
-struct RESULT_S
-{
-    int cnt;
-    char carlist[5][8];
-};
- 
- 
-int N, M, L;
- 
- 
-int getIdx(char s[])
-{
-    return (s[0] - '0') * 1000 + (s[1] - '0') * 100 + (s[2] - '0') * 10 + s[3] - '0';
+    roadIDs.clear();
+    rcnt = 0;
 }
  
- 
-#define TOWING            (-2)
-#define OUT_OF_LOT        (-1)    
- 
- 
-struct Car
+void addRoad(int K, int mID[], int mSpotA[], int mSpotB[], int mLen[])
 {
-    char regNo[8];
-    int d4idx;
-     
-    int timestamp;
-    int zone, slot;
-     
-    set<Car*>::iterator it;
+    for (int i = 0; i < K; i++) {
+        int rid = rcnt++;
+        roadIDs[mID[i]] = rid;
  
+        Road[rid].active = 1;
+        Road[rid].visit = 0;
+        Road[rid].na = mSpotA[i];
+        Road[rid].nb = mSpotB[i];
+        Road[rid].len = mLen[i];
  
-    void init(char c[])
-    {
-        strcpy(regNo, c);
-        d4idx = getIdx(regNo + 3);
- 
- 
-        zone = -1;
+        Node[mSpotA[i]].rids.push_back({ rid, mSpotB[i] });
+        Node[mSpotB[i]].rids.push_back({ rid, mSpotA[i] });
     }
-};
- 
- 
-int carCnt;
-Car cars[70000];
- 
- 
-Car* getCar()
-{
-    return &cars[carCnt++];
 }
  
- 
-queue<pair<int, Car*>> events;
-unordered_map<string, Car*> cdb;
- 
- 
-struct comp
+void removeRoad(int mID)
 {
-    bool operator() (Car* const &a, Car* const &b)
-    {
-        return strcmp(a->regNo, b->regNo) < 0;
-    }
-};
+    if (roadIDs.find(mID) == roadIDs.end())
+        return;
  
+    int rid = roadIDs[mID];
+    Road[rid].active = 0;
+}
  
-set<Car*, comp> parking[10000];
-set<Car*, comp> towing[10000];
- 
- 
-struct Zone
+int check_rids(int rids[])
 {
-    int zoneID;
-     
-    int parkingNum;
-    set<int> emptySlot;
- 
- 
-    void init(int id)
-    { 
-        zoneID = id;
- 
- 
-        emptySlot.clear();
-        for (int i = 0; i < M; ++i)
-            emptySlot.insert(i);
-         
-        parkingNum = 0;
-    }
-     
-    void pullout(int slot)
-    {
-        --parkingNum;    
-        emptySlot.insert(slot);
-    }
-     
-    void enter(Car* p)
-    {
-        auto it = emptySlot.begin();
-         
-        p->zone = zoneID;
-        p->slot = *it;
-         
-        emptySlot.erase(it);
-        ++parkingNum;
-    }
-};
- 
- 
-Zone zone[26];
- 
- 
-void process(int cur)
-{
-    while (!events.empty())
-    {
-        int timestamp = events.front().first;
-        Car* p = events.front().second;
- 
- 
-        if (timestamp + L > cur)
-            return;
- 
- 
-        events.pop();
- 
- 
-        if (p->timestamp == timestamp && p->zone >= 0)
-        {
-            zone[p->zone].pullout(p->slot);
-            p->zone = TOWING;
-            parking[p->d4idx].erase(p->it);
-            p->it = towing[p->d4idx].insert(p).first;
+    for (int i = 0; i < 4; i++) {
+        for (int k = 0; k < 4; k++) {
+            if (runPath[i] == rids[k]) return 0;
         }
     }
+    return 1;
 }
  
- 
-void copyLoc(char s[], int zoneID, int d4idx)
+void calc_length(int nid, int len)
 {
-    s[0] = 'A' + zoneID;
-    s[1] = d4idx / 100 + '0';
-    s[2] = d4idx / 10 % 10 + '0';
-    s[3] = d4idx % 10 + '0';
-    s[4] = '\0';
+    for (PIII it : Node[nid].paths) {
+        int maxlen = it.first + len;
+        if (MAXLEN < maxlen || maxlen <= maxLength) continue;
+ 
+        int check[4];
+        check[0] = it.second.first >> 16;
+        check[1] = it.second.first & 0xffff;
+        check[2] = it.second.second >> 16;
+        check[3] = it.second.second & 0xffff;
+ 
+        if (check_rids(check) == 0) continue;
+ 
+        maxLength = maxlen;
+    }
 }
  
- 
-void init(int N, int M, int L)
+void dfs(int nid, int cnt, int len)
 {
-    ::N = N; ::M = M; ::L = L;
- 
- 
-    for (int i = 0; i < N; ++i)
-        zone[i].init(i);
- 
- 
-    carCnt = 0;
-    for (int i = 0; i < 10000; ++i)
-    {
-        parking[i].clear();
-        towing[i].clear();
+    if (cnt == 4) {
+        calc_length(nid, len);
+        Node[nid].paths.push_back({ len, {(runPath[0] << 16) + runPath[1], (runPath[2] << 16) + runPath[3]} });
+        return;
     }
-     
-    while (!events.empty()) events.pop();
-    cdb.clear();
+ 
+    for (PII it : Node[nid].rids) {
+        int rid = it.first;
+        int next_nid = it.second;
+ 
+        if (next_nid == startNID || Road[rid].active == 0 || Road[rid].visit == 1) continue;
+        runPath[cnt] = rid;
+ 
+        Road[rid].visit = 1;
+        dfs(next_nid, cnt + 1, len + Road[rid].len);
+        Road[rid].visit = 0;
+    }
 }
  
- 
-RESULT_E enter(int mTime, char mCarNo[])
+int getLength(int mSpot)
 {
-    process(mTime);
-     
-    Car* p = cdb[mCarNo];
-    if (p == nullptr)
-    {
-        p = getCar();
-        p->init(mCarNo);
-        cdb[mCarNo] = p;
+    for (int i = 1; i <= N; i++) {
+        Node[i].paths.clear();
     }
-    else if (p->zone == TOWING)
-    {
-        towing[p->d4idx].erase(p->it);
-        p->zone = OUT_OF_LOT;
+    for (int i = 0; i < rcnt; i++) {
+        Road[i].visit = 0;
     }
  
+    startNID = mSpot;
+    maxLength = -1;
  
-    int mm = M, i0 = -1;
-    for (int i = 0; i < N; ++i)
-        if (zone[i].parkingNum < mm)
-        {
-            mm = zone[i].parkingNum;
-            i0 = i;
-        }
-     
-    p->timestamp = mTime;
-     
-    RESULT_E res_e;
+    dfs(mSpot, 0, 0);
  
- 
-    if (i0 == -1)
-    {
-        res_e.success = 0;
-        return res_e;
-    }
- 
- 
-    zone[i0].enter(p);
- 
- 
-    p->it = parking[p->d4idx].insert(p).first;
-     
-    events.push({mTime, p});
-    res_e.success = 1;
-    copyLoc(res_e.locname, p->zone, p->slot);
- 
- 
-    return res_e;
-}
- 
- 
-int pullout(int mTime, char mCarNo[])
-{
-    process(mTime);
-     
-    Car* p = cdb[mCarNo];
- 
- 
-    if (p == nullptr || p->zone == OUT_OF_LOT)
-        return -1;
-     
-    int ret;
-    if (p->zone != TOWING)
-    {
-        zone[p->zone].pullout(p->slot);
-        parking[p->d4idx].erase(p->it);
-        ret = mTime - p->timestamp;
-    }
-    else
-    {
-        towing[p->d4idx].erase(p->it);
-        ret = -L - (mTime - p->timestamp - L) * 5;
-    }
- 
- 
-    p->zone = OUT_OF_LOT;
- 
- 
-    return ret;
-}
- 
- 
-RESULT_S search(int mTime, char mStr[])
-{
-    process(mTime);
-     
-    RESULT_S res_s;
-     
-    res_s.cnt = 0;
- 
- 
-    int d4idx = getIdx(mStr);
-    for (auto p : parking[d4idx])
-    {
-        if (res_s.cnt == 5)
-            break;
-        strcpy(res_s.carlist[res_s.cnt++], p->regNo);
-    }
- 
- 
-    for (auto p : towing[d4idx])
-    {
-        if (res_s.cnt == 5)
-            break;
-        strcpy(res_s.carlist[res_s.cnt++], p->regNo);
-    }
- 
- 
-    return res_s;
+    return maxLength;
 }
