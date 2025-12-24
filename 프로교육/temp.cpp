@@ -1,190 +1,377 @@
+#include <set>
 #include <vector>
 #include <unordered_map>
-#include <algorithm>
+
+#define MAX_ITEMS 100000
 using namespace std;
 
-vector<vector<int>> graph;
-int N;
-unordered_map<int, int> IDLen;
-unordered_map<int, int> IDDest;
-unordered_map<int, int> IDSource;
+struct Item {
+	int ID;
+	int price;
+	bool alive;
+	int category;
+	int company;
+}items[MAX_ITEMS];
 
-void init(int N)
+struct comp
 {
-	::N;
-	vector<vector<int>> new_graph(N);
-	graph = new_graph;
-	IDLen.clear();
-	IDDest.clear();
-	IDSource.clear();
-}
-
-void addRoad(int K, int mID[], int mSpotA[], int mSpotB[], int mLen[])
-{
-	for (int i = 0; i < K; i++) {
-		graph[mSpotA[i]].push_back(mID[i]);
-		graph[mSpotB[i]].push_back(mID[i]);
-		IDLen[mID[i]] = mLen[i];
-		IDDest[mID[i]] = mSpotB[i];
-		IDSource[mID[i]] = mSpotA[i];
+	bool operator() (Item* const& a, Item* const& b) const
+	{
+		return a->price != b->price ? a->price < b->price : a->ID < b->ID;
 	}
-}
+};
 
-void removeRoad(int mID) // vector에서는 지우지 말고, map에서만 지우는 것도 좋은 생각.
+
+struct Section {
+	set<Item*, comp> itemSet;
+	int discount;
+	int closeCnt;
+};
+
+unordered_map<int, Item*> IDItemMap;
+
+Section sections[6][6]; // category , company
+int itemCnt;
+
+struct RESULT
 {
-	if (IDLen.find(mID) != IDLen.end()) {
-		int start = IDSource[mID];
-		int end = IDDest[mID];
-		IDLen.erase(mID);
-		IDDest.erase(mID);
+	int cnt;
+	int IDs[5];
+};
+
+void init()
+{
+	for (int i = 1; i <= 5; i++) {
+		for (int j = 1; j <= 5; j++) {
+			sections[i][j].itemSet.clear();
+			sections[i][j].discount = 0;
+			sections[i][j].closeCnt = 0;
+		}
 	}
+	itemCnt = 0;
+	return;
 }
 
-void dfs()
+int sell(int mID, int mCategory, int mCompany, int mPrice)
 {
+	Item* item = &items[itemCnt++];
+	item->ID = mID;
+	item->price = mPrice + sections[mCategory][mCompany].discount;
+	item->alive = true;
+	item->category = mCategory;
+	item->company = mCompany;
+	sections[mCategory][mCompany].itemSet.insert(item);
+	IDItemMap[mID] = item;
+	return sections[mCategory][mCompany].itemSet.size() - sections[mCategory][mCompany].closeCnt;
 }
 
-int getLength(int mSpot)
+int closeSale(int mID)
 {
-	
+	// 1. does not exist
+	if (IDItemMap.find(mID) == IDItemMap.end()) return -1;
+	// 2. Item not alive
+	else if (IDItemMap[mID]->alive == false) return -1;
+	else {
+		IDItemMap[mID]->alive = false;
+		sections[IDItemMap[mID]->category][IDItemMap[mID]->company].closeCnt++; // item 없어짐 표시
+	}
+	return IDItemMap[mID]->price - sections[IDItemMap[mID]->category][IDItemMap[mID]->company].discount;
+}
+
+int discount(int mCategory, int mCompany, int mAmount)
+{
+	sections[mCategory][mCompany].discount += mAmount;
+	for (Item* item : sections[mCategory][mCompany].itemSet) {
+		if (item->alive) {
+			if (item->price <= sections[mCategory][mCompany].discount) {
+				item->alive = false;
+				sections[mCategory][mCompany].closeCnt++;
+			}
+			else break;
+		}
+	}
+	return sections[mCategory][mCompany].itemSet.size() - sections[mCategory][mCompany].closeCnt;
+}
+
+RESULT show(int mHow, int mCode)
+{
+	RESULT res;
+
+	set<Item*, comp> result_set;
+	if (mHow == 0) {
+		for (int i = 1; i <= 5; i++) {
+			for (int j = 1; j <= 5; j++) {
+				int cnt = 0;
+				for (Item* item : sections[i][j].itemSet) {
+					if (item->alive) {
+						Item* cpy_item = &items[itemCnt++];
+						cpy_item->ID = item->ID;
+						cpy_item->price = item->price - sections[i][j].discount;
+						result_set.insert(cpy_item);
+						if (result_set.size() > 5) result_set.erase(--result_set.end());
+						cnt++;
+						if (cnt >= 5) break;
+					}
+				}
+			}
+		}
+	}
+	else if (mHow == 1) { // mCode is Category
+		for (int j = 1; j <= 5; j++) {
+			int cnt = 0;
+			for (Item* item : sections[mCode][j].itemSet) {
+				if (item->alive) {
+					Item* cpy_item = &items[itemCnt++];
+					cpy_item->ID = item->ID;
+					cpy_item->price = item->price - sections[mCode][j].discount;
+					result_set.insert(cpy_item);
+					if (result_set.size() > 5) result_set.erase(--result_set.end());
+					cnt++;
+					if (cnt >= 5) break;
+				}
+			}
+		}
+	}
+	else { // mCode is Compnay
+		for (int i = 1; i <= 5; i++) {
+			int cnt = 0;
+			for (Item* item : sections[i][mCode].itemSet) {
+				if (item->alive) {
+					Item* cpy_item = &items[itemCnt++];
+					cpy_item->ID = item->ID;
+					cpy_item->price = item->price - sections[i][mCode].discount;
+					result_set.insert(cpy_item);
+					if (result_set.size() > 5) result_set.erase(--result_set.end());
+					cnt++;
+					if (cnt >= 5) break;
+				}
+			}
+		}
+	}
+
+	int idx = 0;
+	for (Item* item : result_set) {
+		res.IDs[idx++] = item->ID;
+	}
+	res.cnt = idx;
+	return res;
 }
 
 /*
-* @file: [H2516][Pro] 마라톤 코스
-  
-* @brief: 모범 답안
-  
-* @copyright: All rights reserved (c) 2025 Samsung Electronics, Inc.
+      
+* @file: [H2506][Pro] 온라인마트
+      
+* @brief: 모범 답안 
+     
+* @copyright: All rights reserved (c) 2025 Samsung Electronics, Inc. 
+     
 */
  
  
-#include <unordered_map>
+#include <set>
 #include <vector>
+#include <unordered_map>
+#include <algorithm>
+ 
+ 
 using namespace std;
  
-#define PII        pair<int,int>
-#define PIII    pair<int,PII>
  
-#define MAXLEN    42195
- 
-struct {
-    vector <PII> rids;
-    vector <PIII> paths;    //len, rid0 + rid1, rid2 + rid3
-} Node[1001];
- 
-struct {
-    int active;
-    int visit;
-    int na, nb;
-    int len;
-} Road[5000];
-int rcnt;
- 
-unordered_map<int, int> roadIDs;
- 
-int startNID, maxLength;
-int runPath[10];
-int N;
- 
-void init(int _N)
+struct RESULT
 {
-    N = _N;
-    for (int i = 1; i <= N; i++) {
-        Node[i].rids.clear();
+    int cnt;
+    int IDs[5];
+};
+ 
+ 
+struct Item
+{
+    int id, ca, co, pr;
+ 
+ 
+    set<Item*>::iterator it;
+ 
+ 
+    bool alive;
+ 
+ 
+    void init(int _id, int _ca, int _co, int _pr)
+    {
+        id = _id; ca = _ca; co = _co; pr = _pr;
+         
+        alive = true;
     }
+};
  
-    roadIDs.clear();
-    rcnt = 0;
+ 
+int nn;
+Item items[50'000];
+ 
+ 
+Item* getItem()
+{
+    return &items[nn++];
 }
  
-void addRoad(int K, int mID[], int mSpotA[], int mSpotB[], int mLen[])
+ 
+struct comp
 {
-    for (int i = 0; i < K; i++) {
-        int rid = rcnt++;
-        roadIDs[mID[i]] = rid;
- 
-        Road[rid].active = 1;
-        Road[rid].visit = 0;
-        Road[rid].na = mSpotA[i];
-        Road[rid].nb = mSpotB[i];
-        Road[rid].len = mLen[i];
- 
-        Node[mSpotA[i]].rids.push_back({ rid, mSpotB[i] });
-        Node[mSpotB[i]].rids.push_back({ rid, mSpotA[i] });
+    bool operator() (Item* const &a, Item* const &b)
+    {
+        return a->pr != b->pr ? a->pr < b->pr : a->id < b->id;
     }
-}
+};
  
-void removeRoad(int mID)
+ 
+struct Bucket
 {
-    if (roadIDs.find(mID) == roadIDs.end())
-        return;
+    int ca, co;
+    set<Item*, comp> itemlist;
+     
+    int base;
+     
+    void init(int _ca, int _co)
+    {
+        ca = _ca; co = _co;
+        itemlist.clear();
  
-    int rid = roadIDs[mID];
-    Road[rid].active = 0;
-}
  
-int check_rids(int rids[])
-{
-    for (int i = 0; i < 4; i++) {
-        for (int k = 0; k < 4; k++) {
-            if (runPath[i] == rids[k]) return 0;
+        base = 0;
+    }
+     
+    void add(Item* p)
+    {
+        p->it = itemlist.insert(p).first;
+    }
+     
+    void erase(Item* p)
+    {
+        itemlist.erase(p->it);
+    }
+     
+    void update()
+    {
+        auto it = itemlist.begin();
+        while (it != itemlist.end() && (*it)->pr + base <= 0)
+        {
+            (*it)->alive = false;
+            it = itemlist.erase(it);
         }
     }
-    return 1;
+     
+    int size()
+    {
+        return itemlist.size();
+    }
+};
+ 
+ 
+Bucket buc[6][6];
+ 
+ 
+unordered_map<int, Item*> cdb;
+ 
+ 
+void init()
+{
+    nn = 0;
+     
+    for (int i = 1; i <= 5; ++i)
+    for (int j = 1; j <= 5; ++j)
+        buc[i][j].init(i, j);
+     
+    cdb.clear();
 }
  
-void calc_length(int nid, int len)
+ 
+int sell(int mID, int mCategory, int mCompany, int mPrice)
 {
-    for (PIII it : Node[nid].paths) {
-        int maxlen = it.first + len;
-        if (MAXLEN < maxlen || maxlen <= maxLength) continue;
- 
-        int check[4];
-        check[0] = it.second.first >> 16;
-        check[1] = it.second.first & 0xffff;
-        check[2] = it.second.second >> 16;
-        check[3] = it.second.second & 0xffff;
- 
-        if (check_rids(check) == 0) continue;
- 
-        maxLength = maxlen;
-    }
+    Item* p = getItem();
+    p->init(mID, mCategory, mCompany, mPrice - buc[mCategory][mCompany].base);
+    buc[mCategory][mCompany].add(p);
+     
+    cdb[mID] = p;
+     
+    return buc[mCategory][mCompany].size();
 }
  
-void dfs(int nid, int cnt, int len)
+ 
+int closeSale(int mID)
 {
-    if (cnt == 4) {
-        calc_length(nid, len);
-        Node[nid].paths.push_back({ len, {(runPath[0] << 16) + runPath[1], (runPath[2] << 16) + runPath[3]} });
-        return;
-    }
+    Item* p = cdb[mID];
+     
+    if (!p || !p->alive) return -1;
+    p->alive = false;
  
-    for (PII it : Node[nid].rids) {
-        int rid = it.first;
-        int next_nid = it.second;
  
-        if (next_nid == startNID || Road[rid].active == 0 || Road[rid].visit == 1) continue;
-        runPath[cnt] = rid;
- 
-        Road[rid].visit = 1;
-        dfs(next_nid, cnt + 1, len + Road[rid].len);
-        Road[rid].visit = 0;
-    }
+    buc[p->ca][p->co].erase(p);
+     
+    return p->pr + buc[p->ca][p->co].base;
 }
  
-int getLength(int mSpot)
+ 
+int discount(int mCategory, int mCompany, int mAmount)
 {
-    for (int i = 1; i <= N; i++) {
-        Node[i].paths.clear();
+    buc[mCategory][mCompany].base -= mAmount;
+    buc[mCategory][mCompany].update();
+     
+    return buc[mCategory][mCompany].size();
+}
+ 
+ 
+RESULT show(int mHow, int mCode)
+{
+    RESULT res;
+ 
+ 
+    vector<pair<int, int>> con;
+ 
+ 
+    if (mHow == 0)
+    {
+        for (int i = 1; i <= 5; ++i)
+        for (int j = 1; j <= 5; ++j)
+        {
+            int c = 0;
+            for (auto it = buc[i][j].itemlist.begin(); it != buc[i][j].itemlist.end() && c < 5; ++c, ++it)
+            {
+                Item* p = (*it);
+                con.push_back({p->pr + buc[i][j].base, p->id});
+            }
+        }
     }
-    for (int i = 0; i < rcnt; i++) {
-        Road[i].visit = 0;
+    else if (mHow == 1)
+    {
+        for (int i = 1; i <= 5; ++i)
+        {
+            int c = 0;
+            for (auto it = buc[mCode][i].itemlist.begin(); it != buc[mCode][i].itemlist.end() && c < 5; ++c, ++it)
+            {
+                Item* p = (*it);
+                con.push_back({p->pr + buc[mCode][i].base, p->id});
+            }
+        }
+    }
+    else
+    {
+        for (int i = 1; i <= 5; ++i)
+        {
+            int c = 0;
+            for (auto it = buc[i][mCode].itemlist.begin(); it != buc[i][mCode].itemlist.end() && c < 5; ++c, ++it)
+            {
+                Item* p = (*it);
+                con.push_back({p->pr + buc[i][mCode].base, p->id});
+            }
+        }
     }
  
-    startNID = mSpot;
-    maxLength = -1;
  
-    dfs(mSpot, 0, 0);
+    sort(con.begin(), con.end());
+     
+    res.cnt = min(5, (int)con.size());
+    for (int i = 0; i < res.cnt; ++i)
+        res.IDs[i] = con[i].second;
  
-    return maxLength;
+ 
+    return res;
 }
